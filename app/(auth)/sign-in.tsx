@@ -1,43 +1,57 @@
 // import { useSignIn } from "@clerk/clerk-expo";
 import { Link } from "expo-router";
 import { useState } from "react";
-import { Image, ScrollView, Text, View } from "react-native";
+import { Alert, Image, ScrollView, Text, View } from "react-native";
 
 import CustomButton from "@/components/CustomButton";
 import InputField from "@/components/InputField";
 import OAuth from "@/components/OAuth";
 import { icons, images } from "@/constants";
+import { useAuth, useSignIn } from "@clerk/expo";
 
 const SignIn = () => {
-  // const { signIn, setActive, isLoaded } = useSignIn();
+  const { signIn } = useSignIn();
+  const { isLoaded } = useAuth();
 
   const [form, setForm] = useState({
     email: "",
     password: "",
   });
 
-  // const onSignInPress = useCallback(async () => {
-  //   if (!isLoaded) return;
+  const onSignInPress = async () => {
+    if (!isLoaded) return;
 
-  //   try {
-  //     const signInAttempt = await signIn.create({
-  //       identifier: form.email,
-  //       password: form.password,
-  //     });
+    try {
+      const { error } = await signIn.password({
+        emailAddress: form.email,
+        password: form.password,
+      });
 
-  //     if (signInAttempt.status === "complete") {
-  //       await setActive({ session: signInAttempt.createdSessionId });
-  //       router.replace("/(root)/(tabs)/home");
-  //     } else {
-  //       // See https://clerk.com/docs/custom-flows/error-handling for more info on error handling
-  //       console.log(JSON.stringify(signInAttempt, null, 2));
-  //       Alert.alert("Error", "Log in failed. Please try again.");
-  //     }
-  //   } catch (err: any) {
-  //     console.log(JSON.stringify(err, null, 2));
-  //     Alert.alert("Error", err.errors[0].longMessage);
-  //   }
-  // }, [isLoaded, form]);
+      if (error) {
+        console.log(JSON.stringify(error, null, 2));
+        let message = "Something went wrong";
+
+        if (typeof error === "object" && error !== null && "errors" in error) {
+          const clerkErr = error as any;
+          message = clerkErr.errors?.[0]?.longMessage || message;
+        }
+
+        Alert.alert("Error", message);
+
+        return;
+      }
+    } catch (err: unknown) {
+      let message = "Something went wrong";
+
+      if (typeof err === "object" && err !== null && "errors" in err) {
+        const clerkErr = err as any;
+        message = clerkErr.errors?.[0]?.longMessage || message;
+      }
+
+      console.log(JSON.stringify(err, null, 2));
+      Alert.alert("Error", message);
+    }
+  };
 
   return (
     <ScrollView className="flex-1 bg-white">
@@ -71,7 +85,7 @@ const SignIn = () => {
 
           <CustomButton
             title="Sign In"
-            // onPress={onSignInPress}
+            onPress={onSignInPress}
             className="mt-6"
           />
 
