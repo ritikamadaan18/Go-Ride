@@ -33,6 +33,7 @@ const SignUp = () => {
       const { error } = await signUp.password({
         emailAddress: form.email,
         password: form.password,
+        firstName: form.name,
       });
 
       if (error) {
