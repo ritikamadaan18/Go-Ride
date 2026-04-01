@@ -43,6 +43,12 @@
             "backgroundColor": "#2F80ED"
           }
         }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.myapp"
+        }
       ]
     ],
     "experiments": {
