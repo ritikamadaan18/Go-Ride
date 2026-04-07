@@ -1,8 +1,16 @@
+import { images } from "@/constants";
 import { fetchAPI } from "@/lib/fetch";
+import { useLocationStore } from "@/store";
 import { PaymentProps } from "@/types/type";
-import { useStripe } from "@stripe/stripe-react-native";
+import { useAuth } from "@clerk/expo";
+import {
+  IntentCreationCallbackParams,
+  useStripe,
+} from "@stripe/stripe-react-native";
+import { router } from "expo-router";
 import { useState } from "react";
-import { Alert, View } from "react-native";
+import { Alert, Image, Text, View } from "react-native";
+import ReactNativeModal from "react-native-modal";
 import CustomButton from "./CustomButton";
 
 const Payment = ({
@@ -12,19 +20,30 @@ const Payment = ({
   driverId,
   rideTime,
 }: PaymentProps) => {
+  const { userId } = useAuth();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [success, setSuccess] = useState<boolean>(false);
 
+  const {
+    userAddress,
+    userLongitude,
+    userLatitude,
+    destinationLatitude,
+    destinationAddress,
+    destinationLongitude,
+  } = useLocationStore();
+
   const initializePaymentSheet = async () => {
     const { error } = await initPaymentSheet({
-      merchantDisplayName: "GoRide",
+      merchantDisplayName: "GoRide Inc.",
       intentConfiguration: {
         mode: {
-          amount: 1099,
+          amount: parseInt(amount) * 100,
           currencyCode: "USD",
         },
         confirmHandler: confirmHandler,
       },
+      returnURL: "goride://book-ride",
       //   appearance: {
       //     primaryButton: {
       //       shapes: {
@@ -39,9 +58,9 @@ const Payment = ({
   };
 
   const confirmHandler = async (
-    paymentMethod,
-    shouldSavePaymentMethod,
-    intentCreationCallback,
+    paymentMethod: any,
+    shouldSavePaymentMethod: boolean,
+    intentCreationCallback: (result: IntentCreationCallbackParams) => void,
   ) => {
     const { paymentIntent, customer } = await fetchAPI(
       "/(api)/(stripe)/create",
@@ -72,6 +91,31 @@ const Payment = ({
           client_secret: paymentIntent.client_secret,
         }),
       });
+
+      if (result.client_secret) {
+        await fetchAPI("/(api)/ride/create", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            origin_address: userAddress,
+            destination_address: destinationAddress,
+            origin_latitude: userLatitude,
+            origin_longitude: userLongitude,
+            destination_latitude: destinationLatitude,
+            destination_longitude: destinationLongitude,
+            ride_time: rideTime.toFixed(0),
+            fare_price: parseInt(amount) * 100,
+            payment_status: "paid",
+            driver_id: driverId,
+            user_id: userId,
+          }),
+        });
+        intentCreationCallback({
+          clientSecret: result.client_secret,
+        });
+      }
     }
   };
 
@@ -88,13 +132,39 @@ const Payment = ({
   };
 
   return (
-    <View>
+    <>
       <CustomButton
         title="Confirm Ride"
         className="my-10"
         onPress={openPaymentSheet}
       />
-    </View>
+      <ReactNativeModal
+        isVisible={success}
+        onBackdropPress={() => setSuccess(false)}
+      >
+        <View className="flex flex-col items-center justify-center bg-white p-7 rounded-2xl">
+          <Image source={images.check} className="w-28 h-28 mt-5" />
+
+          <Text className="text-2xl text-center font-JakartaBold mt-5">
+            Booking placed successfully
+          </Text>
+
+          <Text className="text-md text-general-200 font-JakartaRegular text-center mt-3">
+            Thank you for your booking. Your reservation has been successfully
+            placed. Please proceed with your trip.
+          </Text>
+
+          <CustomButton
+            title="Back Home"
+            onPress={() => {
+              setSuccess(false);
+              router.push("/(root)/(tabs)/home");
+            }}
+            className="mt-5"
+          />
+        </View>
+      </ReactNativeModal>
+    </>
   );
 };
 

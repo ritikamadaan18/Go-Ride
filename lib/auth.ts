@@ -1,5 +1,6 @@
-// import * as Linking from "expo-linking";
+import * as AuthSession from "expo-auth-session";
 import * as SecureStore from "expo-secure-store";
+import { fetchAPI } from "./fetch";
 
 export const tokenCache = {
   async getToken(key: string) {
@@ -24,4 +25,54 @@ export const tokenCache = {
       return;
     }
   },
+};
+
+export const googleOAuth = async (startSSOFlow: any) => {
+  try {
+    const { createdSessionId, setActive, signUp } = await startSSOFlow({
+      strategy: "oauth_google",
+      redirectUrl: AuthSession.makeRedirectUri({
+        scheme: "goride",
+        path: "/(root)/(tabs)/home",
+      }),
+    });
+
+    // If session created → login success
+    if (createdSessionId && setActive) {
+      await setActive({ session: createdSessionId });
+
+      // Store new user in db
+      if (signUp?.createdUserId) {
+        await fetchAPI("/(api)/user", {
+          method: "POST",
+          body: JSON.stringify({
+            name: `${signUp.firstName || ""} ${signUp.lastName || ""}`,
+            email: signUp.emailAddress,
+            clerkId: signUp.createdUserId,
+          }),
+        });
+      }
+
+      return {
+        success: true,
+        code: "success",
+        message: "You have successfully signed in with Google",
+      };
+    }
+
+    // No session - needs extra steps
+    return {
+      success: false,
+      code: "incomplete",
+      message: "Additional authentication steps required",
+    };
+  } catch (err: any) {
+    console.error(err);
+
+    return {
+      success: false,
+      code: err.code,
+      message: err?.errors?.[0]?.longMessage || "OAuth failed",
+    };
+  }
 };
